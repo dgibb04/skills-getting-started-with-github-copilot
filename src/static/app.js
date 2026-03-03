@@ -20,14 +20,52 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // build list of participants (fallback message if none yet)
+        const participantsItems = details.participants.length
+          ? details.participants.map(p =>
+              `<li>${p} <span class="remove-participant" data-activity="${name}" data-email="${p}">&times;</span></li>`
+            ).join("")
+          : '<li><em>None yet</em></li>';
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p><strong>Participants:</strong></p>
+          <ul class="participants-list">
+            ${participantsItems}
+          </ul>
         `;
 
         activitiesList.appendChild(activityCard);
+
+        // wire up delete buttons inside this card
+        activityCard.querySelectorAll('.remove-participant').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const activity = btn.dataset.activity;
+            const email = btn.dataset.email;
+            try {
+              const delResp = await fetch(
+                `/activities/${encodeURIComponent(activity)}/participants?email=${encodeURIComponent(email)}`,
+                { method: 'DELETE' }
+              );
+              const data = await delResp.json();
+              if (delResp.ok) {
+                messageDiv.textContent = data.message;
+                messageDiv.className = 'success';
+                fetchActivities(); // refresh display
+              } else {
+                messageDiv.textContent = data.detail || 'Failed to remove participant';
+                messageDiv.className = 'error';
+              }
+              messageDiv.classList.remove('hidden');
+              setTimeout(() => messageDiv.classList.add('hidden'), 5000);
+            } catch (err) {
+              console.error('Error removing participant:', err);
+            }
+          });
+        });
 
         // Add option to select dropdown
         const option = document.createElement("option");
@@ -62,6 +100,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // refresh the list so new participant appears immediately
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
